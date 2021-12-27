@@ -1,0 +1,9 @@
+{
+  "name": "t22-server",
+  "version": "0.0.0",
+  "main": "src/server.ts",
+  "dependencies": {
+    "@types/uuid": "^8.3.3",
+    "uuid": "^8.3.2"
+  }
+}
