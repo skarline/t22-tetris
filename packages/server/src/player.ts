@@ -1,3 +1,4 @@
+import Logger from "./utils/logger"
 import Playfield from "./playfield"
 import Bag from "./bag"
 import Piece from "./piece"
@@ -5,7 +6,20 @@ import Piece from "./piece"
 import { type ServerOptions } from "./server"
 import { type Tetromino } from "./piece"
 
-import { Action } from "./global"
+export enum Action {
+  LEFT = "left",
+  RIGHT = "right",
+  ROTATE = "rotate",
+  DROP = "drop",
+  HARD_DROP = "hardDrop",
+  HOLD = "hold"
+}
+
+interface Offset {
+  x?: number
+  y?: number
+  rotation?: number
+}
 
 export default class Player {
   public playfield: Playfield
@@ -28,9 +42,7 @@ export default class Player {
   public start(countdown: number = 0): void {
     this.bag = new Bag(this.options.seed, this.options.minBagItems)
 
-    this.setPiece(this.bag.next())
-
-    console.log(this.piece.tetromino)
+    this.nextPiece()
 
     setTimeout(() => {
       this.resetDropTimer()
@@ -57,30 +69,51 @@ export default class Player {
   /**
    * Set the current piece
    */
-  private setPiece(type: Tetromino): void {
-    const x: number = Math.floor(this.playfield.width / 2) - 1
-    const y: number = -4
+  private nextPiece(): void {
+    const piece = new Piece(this.bag.next())
 
-    this.piece = new Piece(type, { x, y })
+    piece.position = {
+      x: Math.floor((this.playfield.width - piece.size()) / 2),
+      y: -piece.size()
+    }
+
+    this.piece = piece
+
+    if (this.testCollision()) {
+      this.stop()
+
+      Logger.log(`Player ${this.id} lost`)
+    }
   }
 
   /**
    * Test if the piece will collide at the given offset
    */
-  private testCollision(offset: { x: number; y: number }): boolean {
-    const { x, y } = this.piece.position
+  private testCollision(offset: Offset = {}): boolean {
+    offset = {
+      x: 0,
+      y: 0,
+      rotation: 0,
+      ...offset,
+    }
 
-    const testX = x + offset.x
-    const testY = y + offset.y
+    const { position } = this.piece
 
-    return this.playfield.test(this.piece, { x: testX, y: testY })
+    const x = position.x + offset.x
+    const y = position.y + offset.y
+    const rotation = this.piece.rotation + offset.rotation
+
+    const testPiece = new Piece(this.piece.tetromino, { x, y }, rotation)
+    
+    return this.playfield.test(testPiece)
   }
 
   /**
    * Lock the current piece in the playfield
    */
   private lockPiece(): void {
-    this.playfield.setPiece(this.piece)
+    if (this.playfield.setPiece(this.piece)) this.nextPiece()
+    else this.stop()
   }
 
   /**
@@ -111,11 +144,25 @@ export default class Player {
     }
   }
 
-  private moveLeft() {}
+  private moveLeft() {
+    if (this.testCollision({ x: -1 })) return
+
+    this.piece.move(-1, 0)
+  }
   
-  private moveRight() {}
+  private moveRight() {
+    if (this.testCollision({ x: 1 })) return
+
+    this.piece.move(1, 0)
+  }
   
-  private rotate() {}
+  private rotate(clockwise: boolean = true) {
+    const rotation = clockwise ? 1 : -1
+
+    if (this.testCollision({ rotation })) return
+
+    this.piece.rotate(clockwise)
+  }
   
   private drop() {
     if (this.testCollision({ x: 0, y: 1 })) {
@@ -123,7 +170,7 @@ export default class Player {
       return
     }
     
-    this.piece.move({ x: 0, y: 1 }) 
+    this.piece.move(0, 1) 
   }
 
   private forceDrop() {

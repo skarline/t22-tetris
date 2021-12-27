@@ -57,7 +57,7 @@ interface PieceBlock extends Block {
 export default class Piece {
   constructor(
     public tetromino: Tetromino,
-    public position: { x: number; y: number },
+    public position: { x: number; y: number } = { x: 0, y: 0 },
     public rotation: number = 0
   ) {}
 
@@ -71,7 +71,7 @@ export default class Piece {
 
     const rotatedSchema: number[] = []
 
-    const size = Math.sqrt(schema.length)
+    const size = this.size()
 
     for (let i = 0; i < schema.length; i++) {
       const x = i % size
@@ -93,19 +93,13 @@ export default class Piece {
 
     const blocks: PieceBlock[] = []
 
-    const size = Math.sqrt(schema.length)
+    const size = this.size()
 
     for (let i = 0; i < schema.length; i++) {
-      const bx = i % size
-      const by = Math.floor(i / size)
+      const x = i % size
+      const y = Math.floor(i / size)
 
-      if (schema[i]) {
-        blocks.push({
-          type: this.tetromino.blockType,
-          x: this.position.x + bx,
-          y: this.position.y + by
-        })
-      }
+      if (schema[i]) blocks.push({ type: this.tetromino.blockType, x, y })
     }
 
     return blocks
@@ -114,18 +108,22 @@ export default class Piece {
   /**
    * Move the piece
    */
-  public move(offset: { x: number; y: number }): void {
-    this.position.x += offset.x
-    this.position.y += offset.y
+  public move(x: number, y: number): void {
+    this.position.y += y
+    this.position.x += x
   }
 
   /**
    * Rotate the piece
    */
-  public rotate(direction: number): void {
-    this.rotation += direction
+  public rotate(clockwise: boolean = true): void {
+    this.rotation += clockwise ? 1 : -1
 
     if (this.rotation < 0) this.rotation = 3
     if (this.rotation > 3) this.rotation = 0
+  }
+
+  public size(): number {
+    return Math.sqrt(this.tetromino.schema.length)
   }
 }

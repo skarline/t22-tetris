@@ -10,6 +10,8 @@ import Player from "./player"
 
 import { v4 as uuidv4 } from "uuid"
 
+export { Action } from "./player"
+
 export interface ServerOptions {
   silent?: boolean
   seed?: number

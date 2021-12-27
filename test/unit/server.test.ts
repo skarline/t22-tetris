@@ -1,14 +1,14 @@
-import T22Server from "t22-server"
+import Server from "t22-server"
 
 describe("Server", () => {
   it("should create a new server", () => {
-    const server = new T22Server()
+    const server = new Server()
 
     expect(server).toBeDefined()
   })
 
   it("should let players join and leave", () => {
-    const server = new T22Server()
+    const server = new Server()
 
     server.addPlayer("1")
     server.addPlayer("2")
@@ -20,7 +20,7 @@ describe("Server", () => {
   })
 
   it("should not let players join if the server is full", () => {
-    const server = new T22Server({
+    const server = new Server({
       maxPlayers: 3
     })
 
@@ -34,7 +34,7 @@ describe("Server", () => {
   })
 
   it("should not let players join twice", () => {
-    const server = new T22Server()
+    const server = new Server()
 
     expect(() => {
       server.addPlayer("1")
@@ -43,7 +43,7 @@ describe("Server", () => {
   })
 
   it("should not let players leave twice", () => {
-    const server = new T22Server()
+    const server = new Server()
 
     server.addPlayer("1")
     server.addPlayer("2")
@@ -56,7 +56,7 @@ describe("Server", () => {
   })
 
   it("should not start a game if there are no players", () => {
-    const server = new T22Server()
+    const server = new Server()
 
     expect(() => {
       server.start()
