@@ -1,7 +1,6 @@
 import Piece from "./piece"
 
-import { Block, BlockType } from "./piece"
-import { type ServerOptions } from "./server"
+import { ServerOptions, Block, BlockType } from "./types"
 
 export default class Playfield {
   private blocks: Block[] = []
@@ -46,7 +45,7 @@ export default class Playfield {
 
       const block = this.get(testX, testY)
 
-      return (!block || block.type !== BlockType.Empty)
+      return !block || block.type !== BlockType.Empty
     })
   }
 
@@ -57,9 +56,11 @@ export default class Playfield {
     let canPlace = true
 
     const { x, y } = piece.position
-    
+
     piece.getBlocks().forEach(({ x: blockX, y: blockY }) => {
-      const placed = this.set(x + blockX, y + blockY, { type: piece.tetromino.blockType })
+      const placed = this.set(x + blockX, y + blockY, {
+        type: piece.tetromino.blockType
+      })
 
       if (!placed) canPlace = false
     })

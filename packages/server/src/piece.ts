@@ -1,18 +1,4 @@
-export enum BlockType {
-  Empty,
-  J,
-  I,
-  L,
-  O,
-  S,
-  T,
-  Z
-}
-
-export type Tetromino = {
-  blockType: BlockType
-  schema: number[]
-}
+import { BlockType, Tetromino, Block } from "./types"
 
 export const Tetrominoes: Tetromino[] = [
   {
@@ -44,10 +30,6 @@ export const Tetrominoes: Tetromino[] = [
     schema: [0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0]
   }
 ]
-
-export interface Block {
-  type: BlockType
-}
 
 interface PieceBlock extends Block {
   x: number
@@ -103,24 +85,6 @@ export default class Piece {
     }
 
     return blocks
-  }
-
-  /**
-   * Move the piece
-   */
-  public move(x: number, y: number): void {
-    this.position.y += y
-    this.position.x += x
-  }
-
-  /**
-   * Rotate the piece
-   */
-  public rotate(clockwise: boolean = true): void {
-    this.rotation += clockwise ? 1 : -1
-
-    if (this.rotation < 0) this.rotation = 3
-    if (this.rotation > 3) this.rotation = 0
   }
 
   public size(): number {

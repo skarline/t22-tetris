@@ -3,23 +3,7 @@ import Playfield from "./playfield"
 import Bag from "./bag"
 import Piece from "./piece"
 
-import { type ServerOptions } from "./server"
-import { type Tetromino } from "./piece"
-
-export enum Action {
-  LEFT = "left",
-  RIGHT = "right",
-  ROTATE = "rotate",
-  DROP = "drop",
-  HARD_DROP = "hardDrop",
-  HOLD = "hold"
-}
-
-interface Offset {
-  x?: number
-  y?: number
-  rotation?: number
-}
+import { ServerOptions, Action, Tetromino } from "./types"
 
 export default class Player {
   public playfield: Playfield
@@ -28,7 +12,7 @@ export default class Player {
   public piece: Piece
   public heldPiece?: Tetromino
 
-  private dropTimer: ReturnType<typeof setInterval>
+  private fallTimer: ReturnType<typeof setInterval>
 
   private isPlaying: boolean = false
 
@@ -45,8 +29,8 @@ export default class Player {
     this.nextPiece()
 
     setTimeout(() => {
-      this.resetDropTimer()
-      
+      this.resetFallTimer()
+
       this.isPlaying = true
     }, countdown * 1000)
   }
@@ -55,15 +39,17 @@ export default class Player {
    * Stop the game
    */
   public stop(): void {
-    clearInterval(this.dropTimer)
+    clearInterval(this.fallTimer)
 
     this.isPlaying = false
   }
 
-  private resetDropTimer() {
-    if (this.dropTimer) clearInterval(this.dropTimer)
+  private resetFallTimer() {
+    if (this.fallTimer) clearInterval(this.fallTimer)
 
-    this.dropTimer = setInterval(() => { this.drop() }, 1000 / this.options.dropsPerSecond)
+    this.fallTimer = setInterval(() => {
+      this.drop()
+    }, 1000 / this.options.fallSpeed)
   }
 
   /**
@@ -89,22 +75,19 @@ export default class Player {
   /**
    * Test if the piece will collide at the given offset
    */
-  private testCollision(offset: Offset = {}): boolean {
-    offset = {
-      x: 0,
-      y: 0,
-      rotation: 0,
-      ...offset,
-    }
-
+  private testCollision(
+    offsetX: number = 0,
+    offsetY: number = 0,
+    offsetRotation: number = 0
+  ): boolean {
     const { position } = this.piece
 
-    const x = position.x + offset.x
-    const y = position.y + offset.y
-    const rotation = this.piece.rotation + offset.rotation
+    const x = position.x + offsetX
+    const y = position.y + offsetY
+    const rotation = this.piece.rotation + offsetRotation
 
     const testPiece = new Piece(this.piece.tetromino, { x, y }, rotation)
-    
+
     return this.playfield.test(testPiece)
   }
 
@@ -119,66 +102,64 @@ export default class Player {
   /**
    * Handle input events
    */
-  public handleAction(action: Action): void {
+  public handle(action: Action, args: any) {
     if (!this.isPlaying) return
 
     switch (action) {
-      case Action.LEFT:
-        this.moveLeft()
+      case "move":
+        this.move(args)
         break
-      case Action.RIGHT:
-        this.moveRight()
+      case "down":
+        this.fall(true)
         break
-      case Action.ROTATE:
-        this.rotate()
+      case "rotate":
+        this.rotate(args)
         break
-      case Action.DROP:
-        this.forceDrop()
+      case "drop":
+        this.drop()
         break
-      case Action.HARD_DROP:
-        this.hardDrop()
-        break
-      case Action.HOLD:
+      case "hold":
         this.hold()
         break
     }
   }
 
-  private moveLeft() {
-    if (this.testCollision({ x: -1 })) return
+  private move(x: number) {
+    if (this.testCollision(x)) return
 
-    this.piece.move(-1, 0)
+    this.piece.position.x += x
   }
-  
-  private moveRight() {
-    if (this.testCollision({ x: 1 })) return
 
-    this.piece.move(1, 0)
-  }
-  
   private rotate(clockwise: boolean = true) {
-    const rotation = clockwise ? 1 : -1
+    const offsetRotation = clockwise ? 1 : -1
 
-    if (this.testCollision({ rotation })) return
-
-    this.piece.rotate(clockwise)
-  }
-  
-  private drop() {
-    if (this.testCollision({ x: 0, y: 1 })) {
-      this.lockPiece()
+    if (!this.testCollision(0, 0, offsetRotation)) {
+      this.piece.rotation += offsetRotation
       return
     }
-    
-    this.piece.move(0, 1) 
+
+    if (!this.testCollision(0, -1, offsetRotation)) {
+      this.piece.rotation += offsetRotation
+      this.piece.position.y -= 1
+
+      this.resetFallTimer()
+    }
   }
 
-  private forceDrop() {
-    this.drop()
-    this.resetDropTimer()
+  private fall(forced: boolean = false) {
+    if (forced) this.resetFallTimer()
+
+    if (this.testCollision(0, 1)) this.lockPiece()
+    else this.piece.position.y += 1
   }
-  
-  private hardDrop() {}
-  
+
+  private drop() {
+    this.resetFallTimer()
+
+    while (!this.testCollision(0, 1)) {
+      this.piece.position.y += 1
+    }
+  }
+
   private hold() {}
 }

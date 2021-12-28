@@ -62,4 +62,21 @@ describe("Server", () => {
       server.start()
     }).toThrowError()
   })
+
+  it("should generate the right random sequence", () => {
+    const server = new Server({
+      seed: 1234
+    })
+
+    const random = server.requestRandomGenerator()
+
+    const sequence = [
+      0.07329497812315822, 0.7034119898453355, 0.9028560190927237,
+      0.9705493662040681, 0.04096397617831826
+    ]
+
+    sequence.forEach((value) => {
+      expect(random.next()).toBe(value)
+    })
+  })
 })

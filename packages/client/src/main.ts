@@ -1,33 +1,33 @@
-import Server, { Action } from "t22-server"
+import Server from "t22-server"
 
-const server = new Server({
+const local = new Server({
   silent: false,
   countdown: 1
 })
 
-const player = server.addPlayer()
+const id = local.addPlayer()
 
 document.addEventListener("keydown", (event) => {
   switch (event.key) {
     case "ArrowLeft":
-      player.handleAction(Action.LEFT)
+      local.dispatch(id, "move", -1)
       break
     case "ArrowRight":
-      player.handleAction(Action.RIGHT)
+      local.dispatch(id, "move", 1)
       break
     case "ArrowDown":
-      player.handleAction(Action.DROP)
+      local.dispatch(id, "down")
       break
     case "ArrowUp":
-      player.handleAction(Action.ROTATE)
+      local.dispatch(id, "rotate")
       break
     case " ":
-      player.handleAction(Action.HARD_DROP)
+      local.dispatch(id, "drop")
       break
     case "Shift":
-      player.handleAction(Action.HOLD)
+      local.dispatch(id, "hold")
       break
   }
 })
 
-server.start()
+local.start()

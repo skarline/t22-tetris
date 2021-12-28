@@ -1,6 +1,7 @@
 import Random from "./utils/random"
 
-import { Tetromino, Tetrominoes } from "./piece"
+import { Tetrominoes } from "./piece"
+import { Tetromino } from "./types"
 
 export default class Bag {
   public items: Tetromino[]

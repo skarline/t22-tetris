@@ -10,18 +10,10 @@ import Player from "./player"
 
 import { v4 as uuidv4 } from "uuid"
 
-export { Action } from "./player"
+export * from "./types"
 
-export interface ServerOptions {
-  silent?: boolean
-  seed?: number
-  minBagItems?: number
-  maxPlayers?: number
-  countdown?: number
-  dropsPerSecond?: number
-  playfieldWidth?: number
-  playfieldHeight?: number
-}
+import type { ServerOptions, Action } from "./types"
+import Random from "./utils/random"
 
 const defaultOptions: ServerOptions = {
   silent: true,
@@ -29,7 +21,7 @@ const defaultOptions: ServerOptions = {
   minBagItems: 3,
   maxPlayers: 4,
   countdown: 0,
-  dropsPerSecond: 1,
+  fallSpeed: 1,
   playfieldWidth: 10,
   playfieldHeight: 20
 }
@@ -66,7 +58,7 @@ export default class Server {
   /**
    * Add a player to the game
    */
-  public addPlayer(id: string = uuidv4()): Player {
+  public addPlayer(id: string = uuidv4()): string {
     if (this.players.has(id)) {
       throw new Error("Player already exists")
     }
@@ -81,7 +73,7 @@ export default class Server {
 
     Logger.log(`Added player ${player.id}`)
 
-    return player
+    return player.id
   }
 
   /**
@@ -109,6 +101,27 @@ export default class Server {
    */
   public getSeed(): number {
     return this.options.seed
+  }
+
+  public dispatch(id: string, action: Action, payload: any = {}): void {
+    if (!this.players.has(id)) {
+      throw new Error("Player does not exist")
+    }
+
+    const player = this.players.get(id)
+
+    player.handle(action, payload)
+  }
+
+  /**
+   * Returns a instance of the random class with the current seed
+   *
+   * This is intended to be used for unit testing and challenge-solving
+   * with the online server, this way we ensure that the same numbers will
+   * be generated for all the players.
+   */
+  public requestRandomGenerator(): Random {
+    return new Random(this.options.seed)
   }
 
   /**
