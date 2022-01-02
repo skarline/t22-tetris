@@ -5,27 +5,29 @@ const local = new Server({
   countdown: 1
 })
 
-const id = local.addPlayer()
+const player = local.addPlayer()
 
 document.addEventListener("keydown", (event) => {
+  const { id } = player
+
   switch (event.key) {
     case "ArrowLeft":
-      local.dispatch(id, "move", -1)
+      local.dispatch("action", { id, type: "left" })
       break
     case "ArrowRight":
-      local.dispatch(id, "move", 1)
+      local.dispatch("action", { id, type: "right" })
       break
     case "ArrowDown":
-      local.dispatch(id, "down")
+      local.dispatch("action", { id, type: "down" })
       break
     case "ArrowUp":
-      local.dispatch(id, "rotate")
+      local.dispatch("action", { id, type: "rotate-right" })
       break
     case " ":
-      local.dispatch(id, "drop")
+      local.dispatch("action", { id, type: "drop" })
       break
     case "Shift":
-      local.dispatch(id, "hold")
+      local.dispatch("action", { id, type: "hold" })
       break
   }
 })

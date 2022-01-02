@@ -6,14 +6,18 @@
  */
 
 import Logger from "./utils/logger"
+import Random from "./utils/random"
 import Player from "./player"
 
 import { v4 as uuidv4 } from "uuid"
 
 export * from "./types"
 
-import type { ServerOptions, Action } from "./types"
-import Random from "./utils/random"
+import type {
+  ServerOptions,
+  ActionEvent,
+  ServerDispatchEventMap
+} from "./types"
 
 const defaultOptions: ServerOptions = {
   silent: true,
@@ -27,7 +31,7 @@ const defaultOptions: ServerOptions = {
 }
 
 export default class Server {
-  private players: Map<string, Player> = new Map()
+  public players: Map<string, Player> = new Map()
 
   constructor(public options: ServerOptions = {}) {
     this.options = {
@@ -58,7 +62,7 @@ export default class Server {
   /**
    * Add a player to the game
    */
-  public addPlayer(id: string = uuidv4()): string {
+  public addPlayer(id: string = uuidv4()): Player {
     if (this.players.has(id)) {
       throw new Error("Player already exists")
     }
@@ -73,7 +77,7 @@ export default class Server {
 
     Logger.log(`Added player ${player.id}`)
 
-    return player.id
+    return player
   }
 
   /**
@@ -103,16 +107,6 @@ export default class Server {
     return this.options.seed
   }
 
-  public dispatch(id: string, action: Action, payload: any = {}): void {
-    if (!this.players.has(id)) {
-      throw new Error("Player does not exist")
-    }
-
-    const player = this.players.get(id)
-
-    player.handle(action, payload)
-  }
-
   /**
    * Returns a instance of the random class with the current seed
    *
@@ -125,9 +119,35 @@ export default class Server {
   }
 
   /**
+   * Allow the host to dispatch an event to the game
+   */
+  public dispatch<K extends keyof ServerDispatchEventMap>(
+    type: K,
+    payload: ServerDispatchEventMap[K]
+  ): void {
+    switch (type) {
+      case "action":
+        this.handleActionEvent(payload)
+        break
+      default:
+        throw new Error(`Unknown event type ${type}`)
+    }
+  }
+
+  private handleActionEvent(payload: ActionEvent): void {
+    const player = this.players.get(payload.id)
+
+    if (!player) {
+      throw new Error(`Player ${payload.id} does not exist`)
+    }
+
+    player.handleAction(payload.type)
+  }
+
+  /**
    * Generate a random seed
    */
   private generateSeed(): number {
-    return Math.floor(Math.random() * 1000000)
+    return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
   }
 }

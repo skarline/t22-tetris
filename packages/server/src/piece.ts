@@ -1,33 +1,115 @@
 import { BlockType, Tetromino, Block } from "./types"
 
+/**
+ * Offset data for the Super Rotation System.
+ * https://tetris.wiki/Super_Rotation_System
+ */
+
+type Offset = [number, number]
+
+type OffsetData = Offset[][]
+
+const defaultOffsetData: OffsetData = [
+  [
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0]
+  ],
+  [
+    [0, 0],
+    [1, 0],
+    [1, -1],
+    [0, 2],
+    [1, 2]
+  ],
+  [
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0]
+  ],
+  [
+    [0, 0],
+    [-1, 0],
+    [-1, -1],
+    [0, 2],
+    [-1, 2]
+  ]
+]
+
+const iOffsetData: OffsetData = [
+  [
+    [0, 0],
+    [-1, 0],
+    [2, 0],
+    [-1, 0],
+    [2, 0]
+  ],
+  [
+    [-1, 0],
+    [0, 0],
+    [0, 0],
+    [0, 1],
+    [0, -2]
+  ],
+  [
+    [-1, 1],
+    [1, 1],
+    [-2, 1],
+    [1, 0],
+    [-2, 0]
+  ],
+  [
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, -1],
+    [0, 2]
+  ]
+]
+
+const oOffsetData: OffsetData = [[[0, 0]], [[0, -1]], [[-1, -1]], [[-1, 0]]]
+
 export const Tetrominoes: Tetromino[] = [
   {
     blockType: BlockType.I,
-    schema: [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0]
+    schema: [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ],
+    offsetData: iOffsetData
   },
   {
     blockType: BlockType.J,
-    schema: [0, 0, 0, 0, 0, 1, 1, 1, 1]
+    schema: [1, 0, 0, 1, 1, 1, 0, 0, 0],
+    offsetData: defaultOffsetData
   },
   {
     blockType: BlockType.L,
-    schema: [0, 0, 0, 1, 1, 1, 1, 0, 0]
+    schema: [0, 0, 1, 1, 1, 1, 0, 0, 0],
+    offsetData: defaultOffsetData
   },
   {
     blockType: BlockType.O,
-    schema: [1, 1, 1, 1]
+    schema: [0, 1, 1, 0, 1, 1, 0, 0, 0],
+    offsetData: oOffsetData
   },
   {
     blockType: BlockType.S,
-    schema: [0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0]
+    schema: [0, 1, 1, 1, 1, 0, 0, 0, 0],
+    offsetData: defaultOffsetData
   },
   {
     blockType: BlockType.T,
-    schema: [0, 1, 0, 1, 1, 1, 0, 0, 0]
+    schema: [0, 1, 0, 1, 1, 1, 0, 0, 0],
+    offsetData: defaultOffsetData
   },
   {
     blockType: BlockType.Z,
-    schema: [0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0]
+    schema: [1, 1, 0, 0, 1, 1, 0, 0, 0],
+    offsetData: defaultOffsetData
   }
 ]
 
@@ -39,9 +121,13 @@ interface PieceBlock extends Block {
 export default class Piece {
   constructor(
     public tetromino: Tetromino,
-    public position: { x: number; y: number } = { x: 0, y: 0 },
+    private _position: { x: number; y: number } = { x: 0, y: 0 },
     public rotation: number = 0
   ) {}
+
+  get position() {
+    return this._position
+  }
 
   /**
    * Returns the schema of the piece at the current rotation
@@ -60,7 +146,7 @@ export default class Piece {
       const y = Math.floor(i / size)
 
       const newX = x * -1 + (size - 1)
-      const newY = y
+      const newY = y * -1 + (size - 1)
 
       const newIndex = newY * size + newX
 
@@ -87,7 +173,33 @@ export default class Piece {
     return blocks
   }
 
+  public moveTo(x: number, y: number): void {
+    this._position = { x, y }
+  }
+
+  public move(x: number, y: number): void {
+    this._position.x += x
+    this._position.y += y
+  }
+
+  public rotate(direction: number): void {
+    this.rotation = this.rotation + direction
+  }
+
   public size(): number {
     return Math.sqrt(this.tetromino.schema.length)
+  }
+
+  public getRotationOffsets(direction: number): Offset[] {
+    const offsetData = this.tetromino.offsetData
+
+    const curr = offsetData.at(this.rotation)
+    const next = offsetData.at(this.rotation + direction)
+
+    return curr.map(([x, y], i) => {
+      const [nx, ny] = next[i]
+
+      return [x - nx, y - ny]
+    })
   }
 }

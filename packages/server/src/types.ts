@@ -9,10 +9,27 @@ export interface ServerOptions {
   playfieldHeight?: number
 }
 
-export type Action = "move" | "down" | "rotate" | "drop" | "hold"
+export type Action =
+  | "left"
+  | "right"
+  | "down"
+  | "rotate-right"
+  | "rotate-left"
+  | "drop"
+  | "hold"
+
+export interface ActionEvent {
+  id: string
+  type: Action
+}
+
+export interface ServerDispatchEventMap {
+  action: ActionEvent
+}
 
 export enum BlockType {
   Empty,
+  Garbage,
   J,
   I,
   L,
@@ -24,7 +41,8 @@ export enum BlockType {
 
 export type Tetromino = {
   blockType: BlockType
-  schema: number[]
+  schema: (0 | 1)[]
+  offsetData: [number, number][][]
 }
 
 export interface Block {

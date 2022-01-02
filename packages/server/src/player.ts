@@ -3,7 +3,7 @@ import Playfield from "./playfield"
 import Bag from "./bag"
 import Piece from "./piece"
 
-import { ServerOptions, Action, Tetromino } from "./types"
+import type { ServerOptions, Action, Tetromino } from "./types"
 
 export default class Player {
   public playfield: Playfield
@@ -58,18 +58,12 @@ export default class Player {
   private nextPiece(): void {
     const piece = new Piece(this.bag.next())
 
-    piece.position = {
-      x: Math.floor((this.playfield.width - piece.size()) / 2),
-      y: -piece.size()
-    }
+    const x = Math.floor((this.playfield.width - piece.size()) / 2)
+    const y = -piece.size()
+
+    piece.moveTo(x, y)
 
     this.piece = piece
-
-    if (this.testCollision()) {
-      this.stop()
-
-      Logger.log(`Player ${this.id} lost`)
-    }
   }
 
   /**
@@ -102,18 +96,24 @@ export default class Player {
   /**
    * Handle input events
    */
-  public handle(action: Action, args: any) {
-    if (!this.isPlaying) return
+  public handleAction(action: Action) {
+    if (this.isPlaying) return
 
     switch (action) {
-      case "move":
-        this.move(args)
+      case "left":
+        this.move(-1)
+        break
+      case "right":
+        this.move(1)
         break
       case "down":
         this.fall(true)
         break
-      case "rotate":
-        this.rotate(args)
+      case "rotate-right":
+        this.rotate(1)
+        break
+      case "rotate-left":
+        this.rotate(-1)
         break
       case "drop":
         this.drop()
@@ -127,20 +127,18 @@ export default class Player {
   private move(x: number) {
     if (this.testCollision(x)) return
 
-    this.piece.position.x += x
+    this.piece.move(x, 0)
   }
 
-  private rotate(clockwise: boolean = true) {
-    const offsetRotation = clockwise ? 1 : -1
-
-    if (!this.testCollision(0, 0, offsetRotation)) {
-      this.piece.rotation += offsetRotation
+  private rotate(direction: number) {
+    if (!this.testCollision(0, 0, direction)) {
+      this.piece.rotate(direction)
       return
     }
 
-    if (!this.testCollision(0, -1, offsetRotation)) {
-      this.piece.rotation += offsetRotation
-      this.piece.position.y -= 1
+    if (!this.testCollision(0, -1, direction)) {
+      this.piece.rotate(direction)
+      this.piece.move(0, -1)
 
       this.resetFallTimer()
     }
@@ -150,14 +148,14 @@ export default class Player {
     if (forced) this.resetFallTimer()
 
     if (this.testCollision(0, 1)) this.lockPiece()
-    else this.piece.position.y += 1
+    else this.piece.move(0, 1)
   }
 
   private drop() {
     this.resetFallTimer()
 
     while (!this.testCollision(0, 1)) {
-      this.piece.position.y += 1
+      this.piece.move(0, 1)
     }
   }
 
