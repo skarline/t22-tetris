@@ -1,12 +1,14 @@
 import Piece from "./piece"
 
-import { ServerOptions, Block, BlockType } from "./types"
+import { ServerOptions, BlockType } from "./types"
 
 export default class Playfield {
-  private blocks: Block[] = []
+  private blocks: BlockType[] = []
+
+  public topMargin = 4
 
   public width = this.options.playfieldWidth
-  public height = this.options.playfieldHeight
+  public height = this.options.playfieldHeight + this.topMargin
 
   constructor(private options: ServerOptions) {
     this.clear()
@@ -15,9 +17,9 @@ export default class Playfield {
   /**
    * Get the block at the given position
    */
-  public get(x: number, y: number): Block | undefined {
+  public get(x: number, y: number): BlockType | undefined {
     if (x < 0 || x >= this.width || y >= this.height) return undefined
-    if (y < 0) return { type: BlockType.Empty }
+    if (y < 0) return BlockType.Empty
 
     return this.blocks[y * this.width + x]
   }
@@ -25,12 +27,9 @@ export default class Playfield {
   /**
    * Set the block at the given position
    */
-  public set(x: number, y: number, block: Block): boolean {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false
-
-    this.blocks[y * this.width + x] = block
-
-    return true
+  public set(x: number, y: number, block: BlockType): void {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height)
+      this.blocks[y * this.width + x] = block
   }
 
   /**
@@ -45,7 +44,7 @@ export default class Playfield {
 
       const block = this.get(testX, testY)
 
-      return !block || block.type !== BlockType.Empty
+      return block !== BlockType.Empty
     })
   }
 
@@ -53,31 +52,23 @@ export default class Playfield {
    * Set the blocks of a piece in the playfield
    */
   public setPiece(piece: Piece): boolean {
-    let canPlace = true
+    let inBounds = false
 
     const { x, y } = piece.position
 
     piece.getBlocks().forEach(({ x: blockX, y: blockY }) => {
-      const placed = this.set(x + blockX, y + blockY, {
-        type: piece.tetromino.blockType
-      })
+      this.set(x + blockX, y + blockY, piece.tetromino.blockType)
 
-      if (!placed) canPlace = false
+      if (y > this.topMargin) inBounds = true
     })
 
-    return canPlace
+    return inBounds
   }
 
   /**
    * Clear the playfield
    */
   private clear(): void {
-    this.blocks = []
-
-    const size = this.width * this.height
-
-    for (let i = 0; i < size; i++) {
-      this.blocks.push({ type: BlockType.Empty })
-    }
+    this.blocks = new Array(this.width * this.height).fill(BlockType.Empty)
   }
 }

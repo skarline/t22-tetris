@@ -48,7 +48,7 @@ export default class Player {
     if (this.fallTimer) clearInterval(this.fallTimer)
 
     this.fallTimer = setInterval(() => {
-      this.drop()
+      this.fall()
     }, 1000 / this.options.fallSpeed)
   }
 
@@ -58,8 +58,8 @@ export default class Player {
   private nextPiece(): void {
     const piece = new Piece(this.bag.next())
 
-    const x = Math.floor((this.playfield.width - piece.size()) / 2)
-    const y = -piece.size()
+    const x = Math.floor((this.playfield.width - piece.size) / 2)
+    const y = this.playfield.topMargin - piece.size
 
     piece.moveTo(x, y)
 
@@ -97,14 +97,14 @@ export default class Player {
    * Handle input events
    */
   public handleAction(action: Action) {
-    if (this.isPlaying) return
+    if (!this.isPlaying) return
 
     switch (action) {
       case "left":
-        this.move(-1)
+        this.move(-1, 0)
         break
       case "right":
-        this.move(1)
+        this.move(1, 0)
         break
       case "down":
         this.fall(true)
@@ -124,23 +124,22 @@ export default class Player {
     }
   }
 
-  private move(x: number) {
+  private move(x: number, y: number) {
     if (this.testCollision(x)) return
 
     this.piece.move(x, 0)
   }
 
   private rotate(direction: number) {
-    if (!this.testCollision(0, 0, direction)) {
-      this.piece.rotate(direction)
-      return
-    }
+    const offsets = this.piece.getRotationOffsets(direction)
 
-    if (!this.testCollision(0, -1, direction)) {
-      this.piece.rotate(direction)
-      this.piece.move(0, -1)
+    for (const [x, y] of offsets) {
+      if (!this.testCollision(x, y, direction)) {
+        this.piece.rotate(direction)
+        this.piece.move(x, y)
 
-      this.resetFallTimer()
+        return
+      }
     }
   }
 

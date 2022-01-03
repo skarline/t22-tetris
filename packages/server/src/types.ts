@@ -39,12 +39,15 @@ export enum BlockType {
   Z
 }
 
-export type Tetromino = {
-  blockType: BlockType
-  schema: (0 | 1)[]
-  offsetData: [number, number][][]
+export enum TetrominoSchemaElement {
+  Empty,
+  Block
 }
 
-export interface Block {
-  type: BlockType
+export type TetrominoSchema = TetrominoSchemaElement[]
+
+export type Tetromino = {
+  blockType: BlockType
+  schema: TetrominoSchema
+  offsetData: [number, number][][]
 }
