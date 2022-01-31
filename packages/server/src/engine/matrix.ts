@@ -1,14 +1,13 @@
 import Piece from "./piece"
 
-import { ServerOptions, BlockType } from "./types"
+import type { ServerOptions } from "../server"
+import { BlockType } from "./types"
 
-export default class Playfield {
+export default class Matrix {
   private blocks: BlockType[] = []
 
-  public topMargin = 4
-
   public width = this.options.playfieldWidth
-  public height = this.options.playfieldHeight + this.topMargin
+  public height = this.options.playfieldHeight * 2 // buffer zone
 
   constructor(private options: ServerOptions) {
     this.clear()
@@ -18,18 +17,20 @@ export default class Playfield {
    * Get the block at the given position
    */
   public get(x: number, y: number): BlockType | undefined {
-    if (x < 0 || x >= this.width || y >= this.height) return undefined
-    if (y < 0) return BlockType.Empty
+    const index = y * this.width + x
 
-    return this.blocks[y * this.width + x]
+    if (this.inBounds(x, y)) return this.blocks[index]
+
+    return undefined
   }
 
   /**
    * Set the block at the given position
    */
   public set(x: number, y: number, block: BlockType): void {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height)
-      this.blocks[y * this.width + x] = block
+    const index = y * this.width + x
+
+    if (this.inBounds(x, y)) this.blocks[index] = block
   }
 
   /**
@@ -51,18 +52,34 @@ export default class Playfield {
   /**
    * Set the blocks of a piece in the playfield
    */
-  public setPiece(piece: Piece): boolean {
-    let inBounds = false
-
+  public setPiece(piece: Piece): void {
     const { x, y } = piece.position
 
     piece.getBlocks().forEach(({ x: blockX, y: blockY }) => {
       this.set(x + blockX, y + blockY, piece.tetromino.blockType)
-
-      if (y > this.topMargin) inBounds = true
     })
+  }
 
-    return inBounds
+  public clearLines(): number[] {
+    let clearedLines = []
+
+    for (let y = this.height - 1; y >= 0; y--) {
+      const line = this.blocks.slice(y * this.width, (y + 1) * this.width)
+
+      if (line.every((block) => block !== BlockType.Empty)) {
+        this.blocks.splice(y * this.width, this.width)
+
+        clearedLines.push(y)
+      }
+    }
+
+    this.blocks.unshift(
+      ...new Array(this.width * clearedLines.length)
+        .fill(0)
+        .map(() => BlockType.Empty)
+    )
+
+    return clearedLines
   }
 
   /**
@@ -70,5 +87,11 @@ export default class Playfield {
    */
   private clear(): void {
     this.blocks = new Array(this.width * this.height).fill(BlockType.Empty)
+  }
+
+  private inBounds(x: number, y: number): boolean {
+    const i = y * this.width + x
+
+    return i >= 0 && i < this.blocks.length
   }
 }

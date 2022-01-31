@@ -9,5 +9,9 @@
   "devDependencies": {
     "typescript": "^4.4.4",
     "vite": "^2.7.2"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "pixi.js": "^6.2.1"
   }
 }

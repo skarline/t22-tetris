@@ -1,9 +1,4 @@
-import {
-  BlockType,
-  Tetromino,
-  TetrominoSchema,
-  TetrominoSchemaElement
-} from "./types"
+import { BlockType, Tetromino, TetrominoSchemaElement } from "./types"
 
 /**
  * Offset data for the Super Rotation System.
@@ -119,7 +114,6 @@ export const Tetrominoes: Tetromino[] = [
 ]
 
 interface Block {
-  type: BlockType
   x: number
   y: number
 }
@@ -127,13 +121,9 @@ interface Block {
 export default class Piece {
   constructor(
     public tetromino: Tetromino,
-    private _position: { x: number; y: number } = { x: 0, y: 0 },
+    public position: { x: number; y: number } = { x: 0, y: 0 },
     public rotation: number = 0
   ) {}
-
-  get position() {
-    return this._position
-  }
 
   get size(): number {
     return Math.sqrt(this.tetromino.schema.length)
@@ -154,7 +144,7 @@ export default class Piece {
 
       const [x, y] = this.rotateAxes(px, py, rotation)
 
-      blocks.push({ type: this.tetromino.blockType, x, y })
+      blocks.push({ x, y })
     }
 
     return blocks
@@ -169,12 +159,12 @@ export default class Piece {
   }
 
   public moveTo(x: number, y: number): void {
-    this._position = { x, y }
+    this.position = { x, y }
   }
 
   public move(x: number, y: number): void {
-    this._position.x += x
-    this._position.y += y
+    this.position.x += x
+    this.position.y += y
   }
 
   public rotate(direction: number): void {

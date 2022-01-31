@@ -1,11 +1,9 @@
 export default class Logger {
-  constructor(public silent: boolean = false) {
-    if (silent) {
-      Logger.log = () => {}
-    }
-  }
+  public static silent: boolean = false
 
   public static log(...args: any[]): void {
+    if (Logger.silent) return
+
     console.log(...args)
   }
 }

@@ -7,96 +7,137 @@
 
 import Logger from "./utils/logger"
 import Random from "./utils/random"
-import Player from "./player"
+import EventBus from "./event-bus"
+import Game from "./engine/game"
 
 import { v4 as uuidv4 } from "uuid"
 
-export * from "./types"
+import { Tetromino } from "./engine/types"
 
-import type {
-  ServerOptions,
-  ActionEvent,
-  ServerDispatchEventMap
-} from "./types"
+import { PieceLockEvent } from "./events"
+
+export * from "./engine/types"
+export * from "./events"
+
+export interface ServerOptions {
+  silent?: boolean
+  seed?: number
+  minBagItems?: number
+  minPlayers?: number
+  maxPlayers?: number
+  countdown?: number
+  initialLevel?: number
+  playfieldWidth?: number
+  playfieldHeight?: number
+}
 
 const defaultOptions: ServerOptions = {
   silent: true,
   seed: 0,
   minBagItems: 3,
+  minPlayers: 1,
   maxPlayers: 4,
   countdown: 0,
-  fallSpeed: 1,
+  initialLevel: 10,
   playfieldWidth: 10,
   playfieldHeight: 20
 }
 
+export type PlayerAction =
+  | "left"
+  | "right"
+  | "down"
+  | "rotate-right"
+  | "rotate-left"
+  | "drop"
+  | "hold"
+
+export interface ActionEvent {
+  player: string
+  type: PlayerAction
+}
+
+interface Player {
+  game: Game
+}
+
 export default class Server {
-  public players: Map<string, Player> = new Map()
+  public players: Player[] = []
+
+  private eventBus: EventBus = new EventBus()
+
+  public get events(): EventBus {
+    return this.eventBus
+  }
 
   constructor(public options: ServerOptions = {}) {
     this.options = {
       ...defaultOptions,
       ...options
     }
+
+    this.options.seed ||= this.generateSeed()
+
+    Logger.silent = this.options.silent
   }
 
   /**
    * Start the game
    */
   public start(): void {
-    if (this.players.size < 1) {
-      throw new Error("No players to start the game")
+    const { minPlayers, seed, countdown } = this.options
+
+    if (this.playersLength < minPlayers) {
+      throw new Error("Not enough players to start the game")
     }
 
-    this.options.seed ||= this.generateSeed()
-
-    Logger.log(
-      `Starting game with seed ${this.options.seed} in ${this.options.countdown}s`
-    )
+    Logger.log(`Starting game with seed ${seed} in ${countdown}s`)
 
     this.players.forEach((player) => {
-      player.start(this.options.countdown)
+      player.game.start()
     })
+  }
+
+  public get playersLength(): number {
+    return this.players.filter((player) => player).length
   }
 
   /**
    * Add a player to the game
    */
-  public addPlayer(id: string = uuidv4()): Player {
-    if (this.players.has(id)) {
-      throw new Error("Player already exists")
-    }
-
-    if (this.players.size >= this.options.maxPlayers) {
+  public addPlayer(index: number = this.players.length): void {
+    if (index >= this.options.maxPlayers) {
       throw new Error("Server is full")
     }
 
-    const player = new Player(id, this.options)
+    if (this.players[index]) {
+      throw new Error(`Slot ${index} is already taken`)
+    }
 
-    this.players.set(player.id, player)
+    const game = new Game(this.options, this.eventBus)
 
-    Logger.log(`Added player ${player.id}`)
+    this.players[index] = { game }
 
-    return player
+    Logger.log(`P${index} joined the game`)
+
+    this.eventBus.dispatch("player-joined", {
+      slot: index
+    })
   }
 
   /**
    * Remove a player from the game
    */
-  public removePlayer(id: string): void {
-    if (!this.players.has(id)) {
-      throw new Error("Player does not exist")
-    }
+  public removePlayer(index: number): void {
+    this.players = this.players.splice(index, 1)
 
-    this.players.delete(id)
-
-    Logger.log(`Removed player ${id}`)
+    Logger.log(`P${index} left the game`)
   }
 
   /**
    * Get all players
    */
-  public getPlayers(): Map<string, Player> {
+  public getPlayers(): Player[] {
     return this.players
   }
 
@@ -116,32 +157,6 @@ export default class Server {
    */
   public requestRandomGenerator(): Random {
     return new Random(this.options.seed)
-  }
-
-  /**
-   * Allow the host to dispatch an event to the game
-   */
-  public dispatch<K extends keyof ServerDispatchEventMap>(
-    type: K,
-    payload: ServerDispatchEventMap[K]
-  ): void {
-    switch (type) {
-      case "action":
-        this.handleActionEvent(payload)
-        break
-      default:
-        throw new Error(`Unknown event type ${type}`)
-    }
-  }
-
-  private handleActionEvent(payload: ActionEvent): void {
-    const player = this.players.get(payload.id)
-
-    if (!player) {
-      throw new Error(`Player ${payload.id} does not exist`)
-    }
-
-    player.handleAction(payload.type)
   }
 
   /**
