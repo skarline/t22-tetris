@@ -20,27 +20,36 @@ export * from "./engine/types"
 export * from "./events"
 
 export interface ServerOptions {
+  silent: boolean
+  seed: number
+  minPlayers: number
+  maxPlayers: number
+  countdown: number
+  initialLevel: number
+  matrixWidth: number
+  matrixHeight: number
+}
+
+export interface ServerOptionsArgs {
   silent?: boolean
   seed?: number
-  minBagItems?: number
   minPlayers?: number
   maxPlayers?: number
   countdown?: number
   initialLevel?: number
-  playfieldWidth?: number
-  playfieldHeight?: number
+  matrixWidth?: number
+  matrixHeight?: number
 }
 
 const defaultOptions: ServerOptions = {
   silent: true,
   seed: 0,
-  minBagItems: 3,
   minPlayers: 1,
-  maxPlayers: 4,
+  maxPlayers: 2,
   countdown: 0,
   initialLevel: 10,
-  playfieldWidth: 10,
-  playfieldHeight: 20
+  matrixWidth: 10,
+  matrixHeight: 20
 }
 
 export type PlayerAction =
@@ -70,10 +79,12 @@ export default class Server {
     return this.eventBus
   }
 
-  constructor(public options: ServerOptions = {}) {
+  public options: ServerOptions
+
+  constructor(optionsArgs: ServerOptionsArgs = {}) {
     this.options = {
       ...defaultOptions,
-      ...options
+      ...optionsArgs
     }
 
     this.options.seed ||= this.generateSeed()
@@ -114,7 +125,7 @@ export default class Server {
       throw new Error(`Slot ${index} is already taken`)
     }
 
-    const game = new Game(this.options, this.eventBus)
+    const game = new Game(index, this.options, this.eventBus)
 
     this.players[index] = { game }
 

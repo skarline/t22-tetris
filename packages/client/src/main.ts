@@ -1,28 +1,13 @@
-/**
- * T22 Tetris game
- *
- * Game client entry point
- */
+import Server from "t22-server"
+import UI from "./ui"
 
-import Server, { PlayerJoinEvent } from "t22-server"
-
-// import UI from "./ui"
-
-/**
- * (THIS IS A PROTOTYPE)
- *
- * We should start by creating a server instance,
- * and then render the game.
- */
-
-// const ui = new UI()
-
-const server = new Server()
-
-server.events.subscribe("player-joined", (event: PlayerJoinEvent) => {
-  console.log(`Player ${event.slot} joined`)
+const server = new Server({
+  countdown: 1
 })
 
+new UI(server)
+
+server.addPlayer()
 server.addPlayer()
 
 server.start()

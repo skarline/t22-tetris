@@ -9,19 +9,19 @@ export default class Bag {
   public items: Tetromino[]
 
   constructor(private seed: number) {
-    this.items = this.shuffle(Tetrominoes)
+    this.items = this.shuffle()
   }
 
   public next(): Tetromino {
     if (this.items.length <= Tetrominoes.length) {
-      this.items.push(...this.shuffle(Tetrominoes))
+      this.items.push(...this.shuffle())
     }
 
     return this.items.pop()
   }
 
-  private shuffle(tetrominoes: Tetromino[]): Tetromino[] {
-    const sorted = tetrominoes.sort(() => this.random.next() - 0.5)
+  private shuffle(): Tetromino[] {
+    const sorted = [...Tetrominoes].sort(() => this.random.next() - 0.5)
 
     return sorted
   }

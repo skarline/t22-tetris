@@ -7,7 +7,7 @@ import type { ServerOptions, PlayerAction } from "../server"
 
 import SharedConstants from "./constants"
 
-import { PieceMoveEvent, PieceLockEvent } from "../events"
+import * as Events from "../events"
 
 import EventBus from "../event-bus"
 
@@ -24,7 +24,11 @@ export default class Game {
 
   private isPlaying: boolean = false
 
-  constructor(private options: ServerOptions, private eventBus: EventBus) {
+  constructor(
+    private slot: number,
+    private options: ServerOptions,
+    private eventBus: EventBus
+  ) {
     this.matrix = new Matrix(options)
     this.bag = new Bag(options.seed)
     this.level = options.initialLevel
@@ -75,7 +79,10 @@ export default class Game {
 
     piece.moveTo(x, y)
 
-    // TODO: test collision and rotate if necessary
+    this.eventBus.dispatch<Events.NextPieceEvent>("next-piece", {
+      slot: this.slot,
+      piece
+    })
 
     this.piece = piece
 
@@ -111,10 +118,10 @@ export default class Game {
     // Check for line clears
     const clearedLines = this.matrix.clearLines()
 
-    this.eventBus.dispatch<PieceLockEvent>("piece-lock", {
-      tetromino: this.piece.tetromino,
-      position: this.piece.position,
-      clearedLines
+    this.eventBus.dispatch<Events.PieceLockEvent>("piece-lock", {
+      slot: this.slot,
+      clearedLines,
+      piece: this.piece
     })
 
     if (clearedLines.length) {
@@ -158,9 +165,14 @@ export default class Game {
   }
 
   private move(x: number, y: number) {
-    if (this.testCollision(x)) return
+    if (this.testCollision(x, y)) return
 
-    this.piece.move(x, 0)
+    this.piece.move(x, y)
+
+    this.eventBus.dispatch<Events.PieceMoveEvent>("piece-move", {
+      slot: this.slot,
+      position: this.piece.position
+    })
   }
 
   private rotate(direction: number) {
@@ -171,6 +183,11 @@ export default class Game {
         this.piece.rotate(direction)
         this.piece.move(x, y)
 
+        this.eventBus.dispatch<Events.PieceRotateEvent>("piece-rotate", {
+          slot: this.slot,
+          rotation: this.piece.rotation
+        })
+
         return
       }
     }
@@ -180,14 +197,14 @@ export default class Game {
     if (forced) this.resetFallInterval()
 
     if (this.testCollision(0, 1)) this.lock()
-    else this.piece.move(0, 1)
+    else this.move(0, 1)
   }
 
   private drop() {
     this.resetFallInterval()
 
     while (!this.testCollision(0, 1)) {
-      this.piece.move(0, 1)
+      this.move(0, 1)
     }
   }
 

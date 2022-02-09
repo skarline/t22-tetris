@@ -6,8 +6,8 @@ import { BlockType } from "./types"
 export default class Matrix {
   private blocks: BlockType[] = []
 
-  public width = this.options.playfieldWidth
-  public height = this.options.playfieldHeight * 2 // buffer zone
+  public width = this.options.matrixWidth
+  public height = this.options.matrixHeight * 2 // buffer zone
 
   constructor(private options: ServerOptions) {
     this.clear()
