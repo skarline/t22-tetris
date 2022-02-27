@@ -2,214 +2,260 @@ import Bag from "./bag"
 import Piece from "./piece"
 import Matrix from "./matrix"
 
-import type { Tetromino } from "./types"
-import type { ServerOptions, PlayerAction } from "../server"
+import { Tetromino } from "./piece"
 
-import SharedConstants from "./constants"
+import Constants from "./constants"
 
-import * as Events from "../events"
+import Timer from "../utils/timer"
+import Match from "../match"
+import { Vector2 } from "../lib/math"
 
-import EventBus from "../event-bus"
+import { PartialGameEvent, EventMap } from "../events"
+import { Action } from "../actions"
 
 export default class Game {
-  public matrix: Matrix
-  public bag: Bag
+  private actionsState: { [key: string]: any } = {}
 
-  public piece: Piece
+  public matrix: Matrix
+  public generator: Bag
+
+  public activePiece?: Piece
   public holdQueue?: Tetromino
 
   public level: number
 
-  private fallInterval: ReturnType<typeof setInterval>
+  private fallTimer = new Timer(() => this.fall(), this.getFallSpeed())
+  private lockTimer = new Timer(() => this.lock(), Constants.LOCK_TIMEOUT, true)
+  private autoShiftTimer = new Timer(() => this.autoShift(), Constants.AUTO_SHIFT_TIMEOUT)
 
-  private isPlaying: boolean = false
-
-  constructor(
-    private slot: number,
-    private options: ServerOptions,
-    private eventBus: EventBus
-  ) {
-    this.matrix = new Matrix(options)
-    this.bag = new Bag(options.seed)
-    this.level = options.initialLevel
+  constructor(private match: Match, private slot: number) {
+    this.matrix = new Matrix(match.options)
+    this.generator = new Bag(match.options.game.seed)
+    this.level = match.options.game.initialLevel
   }
 
-  get fallSpeed(): number {
+  /**
+   * Get the fall speed (seconds per line)
+   */
+  private getFallSpeed(): number {
     return 1000 * (0.8 - (this.level - 1) * 0.007) ** (this.level - 1)
   }
 
   /**
-   * Start the game
+   * Start the initial countdown
    */
-  public start(): void {
-    this.nextPiece()
+  public countdown(): void {
+    const seconds = this.match.options.game.countdown
 
-    setTimeout(() => {
-      this.resetFallInterval()
-
-      this.isPlaying = true
-    }, this.options.countdown * 1000)
+    new Timer(() => this.start(), seconds * 1000, true).start()
   }
 
   /**
    * Stop the game
    */
   public stop(): void {
-    clearInterval(this.fallInterval)
-
-    this.isPlaying = false
+    this.fallTimer.stop()
   }
 
-  private resetFallInterval() {
-    if (this.fallInterval) clearInterval(this.fallInterval)
+  private start(): void {
+    this.nextPiece()
+  }
 
-    this.fallInterval = setInterval(() => {
-      this.fall()
-    }, this.fallSpeed)
+  private dispatchGameEvent<K extends keyof EventMap>(event: K, arg: EventMap[K]): void {
+    const payload: PartialGameEvent & EventMap[K] = { slot: this.slot, ...arg }
+    this.match.eventBus.dispatch(event, payload)
+  }
+
+  public notifyControllerActionPressed(action: Action): void {
+    this.actionsState[action] = true
+
+    if (!this.activePiece) return
+
+    switch (action) {
+      case "move-left":
+        this.move(Vector2.LEFT)
+        this.autoShiftTimer.start(Constants.AUTO_SHIFT_DELAY)
+        break
+      case "move-right":
+        this.move(Vector2.RIGHT)
+        this.autoShiftTimer.start(Constants.AUTO_SHIFT_DELAY)
+        break
+      case "rotate-left":
+        this.rotate(-1)
+        break
+      case "rotate-right":
+        this.rotate(1)
+        break
+      case "soft-drop":
+        this.toggleSoftDrop(true)
+    }
+  }
+
+  public notifyControllerActionReleased(action: Action): void {
+    this.actionsState[action] = false
+
+    if (!this.activePiece) return
+
+    switch (action) {
+      case "move-left":
+      case "move-right":
+        this.autoShiftTimer.stop()
+        break
+      case "soft-drop":
+        this.toggleSoftDrop(false)
+    }
+  }
+
+  private isActionPressed(action: Action): boolean {
+    return this.actionsState[action] ?? false
+  }
+
+  private toggleSoftDrop(value: boolean) {
+    const multiplier = value ? Constants.SOFT_DROP_MULTIPLIER : 1
+
+    this.fallTimer.interval = this.getFallSpeed() / multiplier
   }
 
   /**
    * Set the current piece
    */
   private nextPiece(tetromino?: Tetromino): void {
-    const piece = new Piece(tetromino ?? this.bag.next())
+    const piece = new Piece(tetromino ?? this.generator.next())
 
-    const x = Math.floor((this.matrix.width - piece.size) / 2)
-    const y = this.matrix.height / 2 - piece.size
+    const position = new Vector2(
+      Math.floor((this.matrix.width - piece.size()) / 2),
+      this.matrix.height / 2 - piece.size()
+    )
 
-    piece.moveTo(x, y)
+    piece.moveTo(position)
 
-    this.eventBus.dispatch<Events.NextPieceEvent>("next-piece", {
-      slot: this.slot,
-      piece
-    })
+    this.activePiece = piece
 
-    this.piece = piece
+    this.fallTimer.start()
 
-    // Check for game over
-    if (this.testCollision()) this.stop()
+    this.dispatchGameEvent("next-piece", { piece })
   }
 
   /**
    * Test if the piece will collide at the given offset
    */
-  private testCollision(
-    offsetX: number = 0,
-    offsetY: number = 0,
-    offsetRotation: number = 0
-  ): boolean {
-    const { position } = this.piece
+  private testPieceMoveCollision(offsetPosition: Vector2, offsetRotation: number = 0): boolean {
+    const position = this.activePiece.position.add(offsetPosition)
+    const rotation = this.activePiece.rotation + offsetRotation
 
-    const x = position.x + offsetX
-    const y = position.y + offsetY
-    const rotation = this.piece.rotation + offsetRotation
+    const virtualPiece = new Piece(this.activePiece.tetromino, position, rotation)
 
-    const testPiece = new Piece(this.piece.tetromino, { x, y }, rotation)
-
-    return this.matrix.test(testPiece)
+    return this.matrix.testPiece(virtualPiece)
   }
 
   /**
    * Lock the current piece in the matrix
    */
   private lock(): void {
-    this.matrix.setPiece(this.piece)
+    this.matrix.setPiece(this.activePiece)
 
-    // Check for line clears
-    const clearedLines = this.matrix.clearLines()
+    this.dispatchGameEvent("piece-lock", { piece: this.activePiece })
 
-    this.eventBus.dispatch<Events.PieceLockEvent>("piece-lock", {
-      slot: this.slot,
-      clearedLines,
-      piece: this.piece
-    })
+    const clearedLines = this.matrix.checkForLineClears()
 
-    if (clearedLines.length) {
-      setTimeout(() => {
-        this.nextPiece()
-      }, SharedConstants.clearDelay * 1000)
-    } else {
-      this.nextPiece()
+    if (clearedLines.length > 0) {
+      this.dispatchGameEvent("line-clear", { lines: clearedLines })
     }
+
+    this.nextPiece()
   }
 
-  /**
-   * Handle input events
-   */
-  public handleAction(action: PlayerAction) {
-    if (!this.isPlaying) return
+  private autoShift(): void {
+    const direction = new Vector2(
+      Number(this.isActionPressed("move-right")) - Number(this.isActionPressed("move-left")),
+      0
+    )
 
-    switch (action) {
-      case "left":
-        this.move(-1, 0)
-        break
-      case "right":
-        this.move(1, 0)
-        break
-      case "down":
-        this.fall(true)
-        break
-      case "rotate-right":
-        this.rotate(1)
-        break
-      case "rotate-left":
-        this.rotate(-1)
-        break
-      case "drop":
-        this.drop()
-        break
-      case "hold":
-        this.hold()
-        break
-    }
+    this.move(direction)
   }
 
-  private move(x: number, y: number) {
-    if (this.testCollision(x, y)) return
+  private move(direction: Vector2) {
+    const collision = this.testPieceMoveCollision(direction)
 
-    this.piece.move(x, y)
+    if (collision) {
+      this.dispatchGameEvent("piece-move-collision", { direction })
 
-    this.eventBus.dispatch<Events.PieceMoveEvent>("piece-move", {
-      slot: this.slot,
-      position: this.piece.position
-    })
+      return
+    }
+
+    this.activePiece.move(direction)
+
+    if (this.lockTimer.isRunning()) {
+      this.lockTimer.stop()
+
+      if (this.isFlooring()) {
+        this.lockTimer.start()
+      } else {
+        this.fallTimer.start()
+      }
+    }
+
+    const { position } = this.activePiece
+
+    this.dispatchGameEvent("piece-move", { position })
   }
 
   private rotate(direction: number) {
-    const offsets = this.piece.getRotationOffsets(direction)
+    const offsets = this.activePiece.getTetrominoOffsets(direction)
 
-    for (const [x, y] of offsets) {
-      if (!this.testCollision(x, y, direction)) {
-        this.piece.rotate(direction)
-        this.piece.move(x, y)
+    for (const offset of offsets) {
+      const isValidRotation = !this.testPieceMoveCollision(Vector2.ZERO, direction)
 
-        this.eventBus.dispatch<Events.PieceRotateEvent>("piece-rotate", {
-          slot: this.slot,
-          rotation: this.piece.rotation
-        })
+      if (isValidRotation) {
+        this.activePiece.rotate(direction)
+        this.activePiece.move(offset)
+
+        const { rotation } = this.activePiece
+
+        this.dispatchGameEvent("piece-rotate", { rotation })
 
         return
       }
     }
   }
 
-  private fall(forced: boolean = false) {
-    if (forced) this.resetFallInterval()
+  private fall() {
+    if (this.isFlooring()) {
+      this.lockTimer.start()
+      this.fallTimer.stop()
 
-    if (this.testCollision(0, 1)) this.lock()
-    else this.move(0, 1)
+      return
+    }
+
+    this.move(Vector2.DOWN)
+  }
+
+  private isFlooring(): boolean {
+    return this.testPieceMoveCollision(Vector2.DOWN)
+  }
+
+  private getGhostPosition(): Vector2 | undefined {
+    if (!this.activePiece) return undefined
+
+    let position = this.activePiece.position
+
+    while (!this.testPieceMoveCollision(position)) position.add(Vector2.DOWN)
+
+    return position
   }
 
   private drop() {
-    this.resetFallInterval()
+    if (!this.activePiece) return
 
-    while (!this.testCollision(0, 1)) {
-      this.move(0, 1)
-    }
+    this.move(this.getGhostPosition())
+    this.lock()
   }
 
   private hold() {
-    this.holdQueue = this.piece.tetromino
-    this.nextPiece(this.holdQueue ?? this.bag.next())
+    const toHold = this.activePiece.tetromino
+
+    this.nextPiece(this.holdQueue ?? this.generator.next())
+
+    this.holdQueue = toHold
   }
 }

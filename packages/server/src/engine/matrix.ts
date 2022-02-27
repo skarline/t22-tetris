@@ -1,25 +1,29 @@
 import Piece from "./piece"
 
-import type { ServerOptions } from "../server"
-import { BlockType } from "./types"
+import type MatchOptions from "../match-options"
+
+import Block from "./block"
+
+import { Vector2 } from "../lib/math"
 
 export default class Matrix {
-  private blocks: BlockType[] = []
+  private blocks: Block[] = []
 
-  public width = this.options.matrixWidth
-  public height = this.options.matrixHeight * 2 // buffer zone
+  public width: number
+  public height: number
 
-  constructor(private options: ServerOptions) {
+  constructor(options: MatchOptions) {
+    this.width = options.game.matrixWidth
+    this.height = options.game.matrixHeight * 2 // buffer zone
+
     this.clear()
   }
 
   /**
    * Get the block at the given position
    */
-  public get(x: number, y: number): BlockType | undefined {
-    const index = y * this.width + x
-
-    if (this.inBounds(x, y)) return this.blocks[index]
+  public getBlock(at: Vector2): Block | undefined {
+    if (this.isInBounds(at)) return this.blocks[this.getIndex(at)]
 
     return undefined
   }
@@ -27,25 +31,19 @@ export default class Matrix {
   /**
    * Set the block at the given position
    */
-  public set(x: number, y: number, block: BlockType): void {
-    const index = y * this.width + x
-
-    if (this.inBounds(x, y)) this.blocks[index] = block
+  public setBlock(at: Vector2, block: Block): void {
+    if (this.isInBounds(at)) this.blocks[this.getIndex(at)] = block
   }
 
   /**
    * Test if a piece will collide at the given position
    */
-  public test(piece: Piece): boolean {
-    const { x, y } = piece.position
+  public testPiece(piece: Piece): boolean {
+    return piece.getBlocksPositions().some((blockPosition) => {
+      const position = blockPosition.add(piece.position)
 
-    return piece.getBlocks().some(({ x: blockX, y: blockY }) => {
-      const testX = x + blockX
-      const testY = y + blockY
-
-      const block = this.get(testX, testY)
-
-      return block !== BlockType.Empty
+      if (!this.isInBounds(position)) return true
+      if (this.getBlock(position) !== Block.Empty) return true
     })
   }
 
@@ -53,45 +51,47 @@ export default class Matrix {
    * Set the blocks of a piece in the playfield
    */
   public setPiece(piece: Piece): void {
-    const { x, y } = piece.position
-
-    piece.getBlocks().forEach(({ x: blockX, y: blockY }) => {
-      this.set(x + blockX, y + blockY, piece.tetromino.blockType)
-    })
+    for (const position of piece.getBlocksPositions()) {
+      this.setBlock(position, piece.tetromino.blockType)
+    }
   }
 
-  public clearLines(): number[] {
+  public checkForLineClears(): number[] {
     let clearedLines = []
 
+    // Check and clear from bottom to top
     for (let y = this.height - 1; y >= 0; y--) {
-      const line = this.blocks.slice(y * this.width, (y + 1) * this.width)
+      const blocks = this.getLineBlocks(y)
 
-      if (line.every((block) => block !== BlockType.Empty)) {
+      // Boolean() will resolve false for empty blocks (value 0)
+      if (blocks.every(Boolean)) {
         this.blocks.splice(y * this.width, this.width)
 
         clearedLines.push(y)
       }
     }
 
-    this.blocks.unshift(
-      ...new Array(this.width * clearedLines.length)
-        .fill(0)
-        .map(() => BlockType.Empty)
-    )
+    // Push new lines to the top
+    this.blocks.unshift(...new Array(this.width * clearedLines.length).fill(Block.Empty))
 
     return clearedLines
   }
 
-  /**
-   * Clear the playfield
-   */
-  private clear(): void {
-    this.blocks = new Array(this.width * this.height).fill(BlockType.Empty)
+  private getIndex(position: Vector2): number {
+    return position.y * this.width + position.x
   }
 
-  private inBounds(x: number, y: number): boolean {
-    const i = y * this.width + x
+  private getLineBlocks(y: number): Block[] {
+    return this.blocks.slice(y * this.width, (y + 1) * this.width)
+  }
 
-    return i >= 0 && i < this.blocks.length
+  private clear(): void {
+    this.blocks = new Array(this.width * this.height).fill(Block.Empty)
+  }
+
+  private isInBounds(position: Vector2): boolean {
+    const { x, y } = position
+
+    return x >= 0 && x < this.width && y >= 0 && y < this.height
   }
 }

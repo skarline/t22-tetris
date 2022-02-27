@@ -1,7 +1,6 @@
 import Random from "../utils/random"
 
-import { Tetrominoes } from "./piece"
-import { Tetromino } from "./types"
+import { Tetromino, Tetrominoes } from "./piece"
 
 export default class Bag {
   private random: Random = new Random(this.seed)

@@ -1,4 +1,18 @@
-import { BlockType, Tetromino, TetrominoSchemaElement } from "./types"
+import { Vector2 } from "../lib/math"
+import Block from "./block"
+
+export enum TetrominoSchemaElement {
+  Empty = 0,
+  Block
+}
+
+export type TetrominoSchema = TetrominoSchemaElement[]
+
+export type Tetromino = {
+  blockType: Block
+  schema: TetrominoSchema
+  offsetData: [number, number][][]
+}
 
 /**
  * Offset data for the Super Rotation System.
@@ -75,103 +89,94 @@ const O_OFFSET_DATA: OffsetData = [[[0, 0]], [[0, -1]], [[-1, -1]], [[-1, 0]]]
 
 export const Tetrominoes: Tetromino[] = [
   {
-    blockType: BlockType.I,
-    schema: [
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    ],
+    blockType: Block.I,
+    schema: [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
     offsetData: I_OFFSET_DATA
   },
   {
-    blockType: BlockType.J,
+    blockType: Block.J,
     schema: [1, 0, 0, 1, 1, 1, 0, 0, 0],
     offsetData: JLSTZ_OFFSET_DATA
   },
   {
-    blockType: BlockType.L,
+    blockType: Block.L,
     schema: [0, 0, 1, 1, 1, 1, 0, 0, 0],
     offsetData: JLSTZ_OFFSET_DATA
   },
   {
-    blockType: BlockType.O,
+    blockType: Block.O,
     schema: [0, 1, 1, 0, 1, 1, 0, 0, 0],
     offsetData: O_OFFSET_DATA
   },
   {
-    blockType: BlockType.S,
+    blockType: Block.S,
     schema: [0, 1, 1, 1, 1, 0, 0, 0, 0],
     offsetData: JLSTZ_OFFSET_DATA
   },
   {
-    blockType: BlockType.T,
+    blockType: Block.T,
     schema: [0, 1, 0, 1, 1, 1, 0, 0, 0],
     offsetData: JLSTZ_OFFSET_DATA
   },
   {
-    blockType: BlockType.Z,
+    blockType: Block.Z,
     schema: [1, 1, 0, 0, 1, 1, 0, 0, 0],
     offsetData: JLSTZ_OFFSET_DATA
   }
 ]
 
-interface Block {
-  x: number
-  y: number
-}
-
 export default class Piece {
+  private _blocksPositions: Vector2[]
+
   constructor(
     public tetromino: Tetromino,
-    public position: { x: number; y: number } = { x: 0, y: 0 },
+    public position: Vector2 = Vector2.ZERO,
     public rotation: number = 0
   ) {}
 
-  get size(): number {
+  public size(): number {
     return Math.sqrt(this.tetromino.schema.length)
   }
 
-  public getBlocks(): Block[] {
-    const { size, rotation } = this
+  private computeBlocksPositions(): Vector2[] {
+    const positions: Vector2[] = []
 
     const schema = this.tetromino.schema
-
-    const blocks: Block[] = []
 
     for (let i = 0; i < schema.length; i++) {
       if (schema[i] === TetrominoSchemaElement.Empty) continue
 
-      const px = i % size
-      const py = Math.floor(i / size)
+      const x = i % this.size()
+      const y = Math.floor(i / this.size())
 
-      const [x, y] = this.rotateAxes(px, py, rotation)
+      const rotated = new Vector2(x, y).rotate(this.rotation * Math.PI * -0.5)
 
-      blocks.push({ x, y })
+      positions.push(rotated)
     }
 
-    return blocks
+    this._blocksPositions = positions
+
+    return positions
   }
 
-  private rotateAxes(x: number, y: number, rotation: number): [number, number] {
-    if (rotation === 1) return [y, -x]
-    if (rotation === 2) return [-x, -y]
-    if (rotation === 3) return [-y, x]
-
-    return [x, y]
+  public getBlocksPositions(): Vector2[] {
+    return this._blocksPositions ?? this.computeBlocksPositions()
   }
 
-  public moveTo(x: number, y: number): void {
-    this.position = { x, y }
+  public moveTo(position: Vector2): void {
+    this.position = position
   }
 
-  public move(x: number, y: number): void {
-    this.position.x += x
-    this.position.y += y
+  public move(direction: Vector2): void {
+    this.position = this.position.add(direction)
   }
 
   public rotate(direction: number): void {
-    this.rotation = (((this.rotation + direction) % 4) + 4) % 4
+    this.rotation = this.rotation + direction
+    this.computeBlocksPositions()
   }
 
-  public getRotationOffsets(direction: number): Offset[] {
+  public getTetrominoOffsets(direction: number): Vector2[] {
     const offsetData = this.tetromino.offsetData
 
     const curr = offsetData.at(this.rotation)
@@ -180,7 +185,7 @@ export default class Piece {
     return curr.map(([x, y], i) => {
       const [nx, ny] = next?.[i] || [0, 0]
 
-      return [x - nx, y - ny]
+      return new Vector2(x - nx, y - ny)
     })
   }
 }
