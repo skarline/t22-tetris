@@ -1,5 +1,4 @@
 import { Action } from "./actions"
-import Piece from "./engine/piece"
 
 import { Vector2 } from "./lib/math"
 
@@ -7,43 +6,7 @@ export interface PartialGameEvent {
   slot: number
 }
 
-export interface PlayerJoinEvent {}
-
-export interface NextPieceEvent {
-  piece: Piece
-}
-
-export interface PieceRotateEvent {
-  rotation: number
-}
-
-export interface PieceLockEvent {
-  piece: Piece
-}
-
-export interface PieceMoveEvent {
-  position: Vector2
-}
-
-export interface PieceMoveCollisionEvent {
-  direction: Vector2
-}
-
-export interface LineClearEvent {
-  lines: number[]
-}
-
-export interface ActionPressedEvent {
-  slot: number
-  action: Action
-}
-
-export interface ActionReleasedEvent {
-  slot: number
-  action: Action
-}
-
-export type MatchEvent = "player-join" | "player-leave"
+export type MatchEvent = "player-join" | "player-leave" | "start"
 export type GameEvent =
   | "next-piece"
   | "piece-rotate"
@@ -56,14 +19,32 @@ export type ControllerEvent = "action-pressed" | "action-released"
 
 export type Event = MatchEvent | GameEvent | ControllerEvent
 
-export interface EventMap {
-  "player-join": PlayerJoinEvent
-  "next-piece": NextPieceEvent
-  "piece-rotate": PieceRotateEvent
-  "piece-lock": PieceLockEvent
-  "piece-move": PieceMoveEvent
-  "piece-move-collision": PieceMoveCollisionEvent
-  "line-clear": LineClearEvent
-  "action-pressed": ActionPressedEvent
-  "action-released": ActionReleasedEvent
+export interface MatchEventMap {
+  "player-join": { slot: number }
+  "player-leave": { slot: number }
+  "start": {}
+}
+
+export interface GameEventMap {
+  "next-piece": { data: string; position: Vector2 }
+  "piece-rotate": { rotation: number }
+  "piece-lock": { data: string; position: Vector2 }
+  "piece-move": { position: Vector2 }
+  "piece-move-collision": { direction: Vector2 }
+  "line-clear": { lines: number[] }
+}
+
+export interface DetailedGameEventMap {
+  [key: string]: PartialGameEvent & GameEventMap[keyof GameEventMap]
+}
+
+export interface ControllerEventMap {
+  "action-pressed": { slot: number; action: Action }
+  "action-released": { slot: number; action: Action }
+}
+
+export interface EventMap extends MatchEventMap, GameEventMap, ControllerEventMap {}
+
+export type EventSubscriberMap = {
+  [K in keyof EventMap]: (args: EventMap[K]) => void
 }

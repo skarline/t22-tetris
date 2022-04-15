@@ -10,7 +10,7 @@ import Timer from "../utils/timer"
 import Match from "../match"
 import { Vector2 } from "../lib/math"
 
-import { PartialGameEvent, EventMap } from "../events"
+import { GameEventMap, DetailedGameEventMap } from "../events"
 import { Action } from "../actions"
 
 export default class Game {
@@ -24,14 +24,18 @@ export default class Game {
 
   public level: number
 
-  private fallTimer = new Timer(() => this.fall(), this.getFallSpeed())
-  private lockTimer = new Timer(() => this.lock(), Constants.LOCK_TIMEOUT, true)
-  private autoShiftTimer = new Timer(() => this.autoShift(), Constants.AUTO_SHIFT_TIMEOUT)
+  private fallTimer: Timer
+  private lockTimer: Timer
+  private autoShiftTimer: Timer
 
   constructor(private match: Match, private slot: number) {
     this.matrix = new Matrix(match.options)
     this.generator = new Bag(match.options.game.seed)
     this.level = match.options.game.initialLevel
+
+    this.fallTimer = new Timer(() => this.fall(), this.getFallSpeed())
+    this.lockTimer = new Timer(() => this.lock(), Constants.LOCK_TIMEOUT, true)
+    this.autoShiftTimer = new Timer(() => this.autoShift(), Constants.AUTO_SHIFT_TIMEOUT)
   }
 
   /**
@@ -50,10 +54,7 @@ export default class Game {
     new Timer(() => this.start(), seconds * 1000, true).start()
   }
 
-  /**
-   * Stop the game
-   */
-  public stop(): void {
+  private stop(): void {
     this.fallTimer.stop()
   }
 
@@ -61,15 +62,15 @@ export default class Game {
     this.nextPiece()
   }
 
-  private dispatchGameEvent<K extends keyof EventMap>(event: K, arg: EventMap[K]): void {
-    const payload: PartialGameEvent & EventMap[K] = { slot: this.slot, ...arg }
-    this.match.eventBus.dispatch(event, payload)
+  private dispatchEvent<K extends keyof GameEventMap>(event: K, arg: GameEventMap[K]): void {
+    const payload: DetailedGameEventMap[K] = { slot: this.slot, ...arg }
+    this.match.bus.post(event, payload)
   }
 
   public notifyControllerActionPressed(action: Action): void {
     this.actionsState[action] = true
 
-    if (!this.activePiece) return
+    if (this.activePiece) return
 
     switch (action) {
       case "move-left":
@@ -133,7 +134,7 @@ export default class Game {
 
     this.fallTimer.start()
 
-    this.dispatchGameEvent("next-piece", { piece })
+    this.dispatchEvent("next-piece", { data: piece.serialize(), position })
   }
 
   /**
@@ -154,12 +155,15 @@ export default class Game {
   private lock(): void {
     this.matrix.setPiece(this.activePiece)
 
-    this.dispatchGameEvent("piece-lock", { piece: this.activePiece })
+    this.dispatchEvent("piece-lock", {
+      piece: this.activePiece,
+      position: this.activePiece.position
+    })
 
     const clearedLines = this.matrix.checkForLineClears()
 
     if (clearedLines.length > 0) {
-      this.dispatchGameEvent("line-clear", { lines: clearedLines })
+      this.dispatchEvent("line-clear", { lines: clearedLines })
     }
 
     this.nextPiece()
@@ -178,7 +182,7 @@ export default class Game {
     const collision = this.testPieceMoveCollision(direction)
 
     if (collision) {
-      this.dispatchGameEvent("piece-move-collision", { direction })
+      this.dispatchEvent("piece-move-collision", { direction })
 
       return
     }
@@ -197,7 +201,7 @@ export default class Game {
 
     const { position } = this.activePiece
 
-    this.dispatchGameEvent("piece-move", { position })
+    this.dispatchEvent("piece-move", { position })
   }
 
   private rotate(direction: number) {
@@ -212,7 +216,7 @@ export default class Game {
 
         const { rotation } = this.activePiece
 
-        this.dispatchGameEvent("piece-rotate", { rotation })
+        this.dispatchEvent("piece-rotate", { rotation })
 
         return
       }

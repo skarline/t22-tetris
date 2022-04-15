@@ -1,6 +1,7 @@
 {
-  "name": "t22-client",
+  "name": "@game/client",
   "version": "0.0.0",
+  "main": "src/main.ts",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

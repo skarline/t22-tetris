@@ -1,20 +1,14 @@
-/**
- * T22 Game Server
- *
- * the server will be responsible for the game logic
- * socket.io won't be implemented here but in the client-server architecture
- */
-import _ from "lodash"
-
 import Logger from "./utils/logger"
 import Random from "./utils/random"
 
 import Game from "./engine/game"
 
 import EventBus from "./event-bus"
-import MatchOptions from "./match-options"
+import { EventMap } from "./events"
 
-import { ActionPressedEvent, ActionReleasedEvent } from "./events"
+import { Action } from "./actions"
+
+import _ from "lodash"
 
 type DeepPartial<T> = T extends object
   ? {
@@ -22,7 +16,22 @@ type DeepPartial<T> = T extends object
     }
   : T
 
+export interface MatchOptions {
+  isHost: boolean
+  silent: boolean
+  minPlayers: number
+  maxPlayers: number
+  game: {
+    seed: number
+    countdown: number
+    initialLevel: number
+    matrixWidth: number
+    matrixHeight: number
+  }
+}
+
 const defaultOptions: MatchOptions = {
+  isHost: false,
   silent: true,
   minPlayers: 1,
   maxPlayers: 2,
@@ -39,82 +48,94 @@ interface Player {
   game: Game
 }
 
+type MatchConstructorOptions = DeepPartial<MatchOptions>
+
 export default class Match {
   private playersSlots: Player[] = []
 
-  public eventBus: EventBus = new EventBus()
+  public bus = new EventBus()
 
   public options: MatchOptions
 
-  constructor(options: DeepPartial<MatchOptions> = {}) {
-    this.options = _.defaultsDeep(options, defaultOptions)
-
-    Logger.silent = this.options.silent
-
-    if (!this.options.game.seed) {
-      this.generateSeed()
+  constructor() {
+    // The @ symbol is used here as a placeholder for the events coming from
+    // outside the match class. (e.g. the worker in the client)
+    const handlers = {
+      "@setup": this.setup,
+      "@start": this.start,
+      "@player-join": this.onPlayerJoin,
+      "@player-leave": this.onPlayerLeave,
+      "@action-pressed": this.onActionPressed,
+      "@action-released": this.onActionReleased
     }
 
-    this.eventBus.subscribe("action-pressed", this.onActionPressed.bind(this))
-    this.eventBus.subscribe("action-released", this.onActionReleased.bind(this))
-  }
-
-  /**
-   * Start the game
-   */
-  public start(): void {
-    const { seed, countdown } = this.options.game
-
-    if (this.players.length < this.options.minPlayers) {
-      throw new Error("Not enough players to start the game")
-    }
-
-    Logger.log(`Starting game with seed ${seed} in ${countdown}s`)
-
-    this.players.forEach((player) => player.game.countdown())
-  }
-
-  public get players(): Player[] {
-    return this.playersSlots.filter((player) => player.game)
-  }
-
-  /**
-   * Add a player to the game
-   */
-  public addPlayer(index: number = this.players.length): void {
-    if (index >= this.options.maxPlayers) {
-      throw new Error("Server is full")
-    }
-
-    if (this.players[index]) {
-      throw new Error(`Slot ${index} is already taken`)
-    }
-
-    const game = new Game(this, index)
-
-    this.playersSlots[index] = { game }
-
-    Logger.log(`P${index} joined the game`)
-
-    this.eventBus.dispatch("player-joined", {
-      slot: index
+    Object.entries(handlers).forEach(([event, callback]) => {
+      this.bus.on(event, callback.bind(this))
     })
   }
 
-  /**
-   * Remove a player from the game
-   */
-  public removePlayer(index: number): void {
-    this.playersSlots = this.players.splice(index, 1)
+  public setup(options: MatchConstructorOptions) {
+    this.options = _.defaultsDeep(options, defaultOptions)
+    this.options.game.seed ||= this.getRandomSeed()
 
-    Logger.log(`P${index} left the game`)
+    Logger.silent = this.options.silent
+
+    this.bus.post("setup", this.options)
   }
 
-  /**
-   * Get all players
-   */
+  private start(): void {
+    const { seed, countdown } = this.options.game
+
+    const players = this.getPlayers()
+
+    if (players.length < this.options.minPlayers) {
+      throw new Error("Not enough players to start the game")
+    }
+
+    for (const player of players) {
+      player.game.countdown()
+    }
+
+    this.bus.post("start")
+
+    Logger.log(`Starting game with seed ${seed} in ${countdown}s`)
+  }
+
   public getPlayers(): Player[] {
-    return this.players
+    return this.playersSlots.filter((player) => player.game)
+  }
+
+  private onPlayerJoin(args: { slot: number }): void {
+    const { slot } = args
+
+    if (slot >= this.options.maxPlayers || this.getPlayers()[slot]) {
+      throw new Error(`Slot ${slot} is not available`)
+    }
+
+    // Create a game instance
+    const game = new Game(this, slot)
+
+    this.playersSlots[slot] = { game }
+
+    Logger.log(`P${slot} joined the game`)
+  }
+
+  public onPlayerLeave(args: EventMap["player-leave"]): void {
+    const { slot } = args
+
+    this.playersSlots = this.getPlayers().splice(slot, 1)
+  }
+
+  private onActionPressed(slot: number, action: Action): void {
+    const player = this.playersSlots[slot]
+
+    player.game?.notifyControllerActionPressed(action)
+  }
+
+  private onActionReleased(slot: number, action: Action): void {
+    const player = this.getPlayers()[slot]
+
+    player.game?.notifyControllerActionReleased(action)
   }
 
   /**
@@ -131,19 +152,7 @@ export default class Match {
   /**
    * Generate a random seed
    */
-  private generateSeed(): void {
-    this.options.game.seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
-  }
-
-  private onActionPressed(event: ActionPressedEvent): void {
-    const player = this.playersSlots[event.slot]
-
-    player.game?.notifyControllerActionPressed(event.action)
-  }
-
-  private onActionReleased(event: ActionReleasedEvent): void {
-    const player = this.players[event.slot]
-
-    player.game?.notifyControllerActionReleased(event.action)
+  private getRandomSeed(): number {
+    return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
   }
 }

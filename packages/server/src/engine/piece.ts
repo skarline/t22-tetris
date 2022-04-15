@@ -1,4 +1,5 @@
 import { Vector2 } from "../lib/math"
+import Serializer from "../utils/serializer"
 import Block from "./block"
 
 export enum TetrominoSchemaElement {
@@ -187,5 +188,17 @@ export default class Piece {
 
       return new Vector2(x - nx, y - ny)
     })
+  }
+
+  public serialize(): string {
+    let matrix = Array(this.size() ** 2).fill(0)
+
+    for (const block of this.getBlocksPositions()) {
+      matrix[block.x + block.y * this.size()] = this.tetromino.blockType
+    }
+
+    console.log(Serializer.compressMatrix(matrix))
+
+    return Serializer.compressMatrix(matrix)
   }
 }
